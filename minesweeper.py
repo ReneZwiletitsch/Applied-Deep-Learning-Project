@@ -21,14 +21,10 @@ class MinesweeperEnv():
         self.win_reward = 1 #xdim*ydim
         self.repetition_penalty = -0.5
         self.adjacent_reward = 0.1
-
-
-
-
-        #get valid actions
+        self.game_grid, self.player_grid = self.create_grids(self.xdim,self.ydim,self.total_mines)
+        self.minecount = self.total_mines
+        self.safe_spots = self.xdim*self.ydim -self.total_mines
         self.valid_actions =  [(x, y) for x in range(xdim + 1) for y in range(ydim + 1)]
-        #temp, weggelassen observation space, action space
-
 
     def create_grids(self,xdim,ydim,total_mines):
         #create empty grids
@@ -96,8 +92,6 @@ class MinesweeperEnv():
                                 adjacent_counter += 1
                             else:
                                 break
-                #print("adjacent counter: ",adjacent_counter)
-                #print("adjacent reward: ", self.adjacent_reward * (adjacent_counter))
                 reward += self.adjacent_reward * adjacent_counter
             
             if not endstate:
@@ -113,26 +107,47 @@ class MinesweeperEnv():
         return reward,endstate,recursion_list
     
 
-    def step(self, action):
+    def step(self, action,done_actions,training_mode):
         """
         Assume action is the index of the neuron i guess
         
         """
         curr_x = int(action / self.ydim)
         curr_y = int(action % self.ydim)
+        fail_states = []
 
-        #print("opening:",curr_x,curr_y)
-        reward,endstate,recursion_list = self.open(curr_x,curr_y,[])
-        actionlist = [x * self.ydim + y for x, y in recursion_list]
-
-        won = False
-        if endstate:
-            if self.safe_spots == 0:
-                won = True
-        
+        HER_chance = 0.7 #chance that HER avoids hitting a mine
 
 
-        return self.player_grid,reward,endstate,won,actionlist
+        temp_player_grid = copy.deepcopy(self.player_grid)
+
+        her_passed = False
+        while not her_passed:
+            reward,endstate,recursion_list = self.open(curr_x,curr_y,[])
+            actionlist = [x * self.ydim + y for x, y in recursion_list]
+
+            won = False
+            if endstate:
+                if self.safe_spots == 0:
+                    won = True
+
+            #Hindsight Experience Replay implementation
+            # if the game is over but not won, we reset the player grid to before the action and choose a different action
+            if training_mode and endstate and not won:
+                fail_states.append(action)
+                if random.random()< HER_chance:
+                    self.player_grid = copy.deepcopy(temp_player_grid) #reset player grid
+                    action = self.sample_action() #choose different action at random
+                    while action in done_actions or action in fail_states: #failstates makes sure to not pick the same bomb twice in one turn
+                        action = self.sample_action()     
+                    curr_x = int(action / self.ydim)
+                    curr_y = int(action % self.ydim)
+                else:
+                    her_passed = True
+            else:
+                her_passed = True
+
+        return self.player_grid,reward,endstate,won,actionlist,action
 
 
     def print_player_grid(self):
@@ -187,45 +202,38 @@ def handle_input(xdim,ydim):
 
 
 
-"""
-#main
-xdim = 9
-ydim = 9
-total_mines = 10
 
-safe_spots = xdim*ydim -total_mines
-good_input = False
-minecount= total_mines
+if __name__ == '__main__':
+    #main
+    xdim = 9
+    ydim = 9
+    total_mines = 10
 
-
-
-
-game = MinesweeperEnv(xdim,ydim,total_mines)
-game.reset()
-endstate = False
-game.print_player_grid()
-while not endstate:
-    x,y,good_input = handle_input(xdim,ydim)
-    if not good_input:
-        continue
-    action = x*ydim+y
-    print("action",action)
-    #reward,endstate,_ = game.open(x,y)
-    _,reward,endstate,won = game.step(action)
-    print(reward)
+    safe_spots = xdim*ydim -total_mines
+    good_input = False
+    minecount= total_mines
+    game = MinesweeperEnv(xdim,ydim,total_mines)
+    game.reset()
+    endstate = False
     game.print_player_grid()
+    while not endstate:
+        x,y,good_input = handle_input(xdim,ydim)
+        if not good_input:
+            continue
+        action = x*ydim+y
+        print("action",action)
+        #reward,endstate,_ = game.open(x,y)
+        _,reward,endstate,won = game.step(action)
+        print(reward)
+        game.print_player_grid()
 
-        
 
+    #endscreen
+    if game.safe_spots != 0:
+        print("BETTER LUCK NEXT TIME!")
+    else:
+        print("YOU WON!")
+    time.sleep(3)
 
-
-#endscreen
-if game.safe_spots != 0:
-    print("BETTER LUCK NEXT TIME!")
-else:
-    print("YOU WON!")
-time.sleep(3)
-
-"""
 
 
