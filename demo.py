@@ -74,12 +74,12 @@ device = torch.device(
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
 
-load_release = False
+load_release = True
 
 
 if load_release:
 
-    model_url = "https://github.com/your_username/your_repository_name/releases/download/v1.0/your_model_filename.pth"  # Replace with actual URL
+    model_url = "https://github.com/ReneZwiletitsch/Applied-Deep-Learning-Project/releases/download/V0.2/safed_policy_netCNNsmallest.pth"  # Replace with actual URL
 
     try:
         response = requests.get(model_url)
@@ -90,7 +90,8 @@ if load_release:
             f.write(response.content)
 
         # Load model from file
-        model = torch.load("downloaded_model.pth")
+        model = ConvNet(xdim, ydim).to(device)
+        model.load_state_dict(torch.load("downloaded_model.pth"))
         model.eval()  # Set model to evaluation mode, not sure if neccessary, or if it does anything at all
 
     except requests.exceptions.RequestException as e:
